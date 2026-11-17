@@ -42,7 +42,7 @@ class Config:
     NEURONS_POOL = int(SHAPE_POOL ** 2) #number of neurons for each image in layer 3 (169)
     NEURONS_L3 = int(KERNEL_NUMBER * NEURONS_POOL) #number of neurons on the pooling layer (1352)
 
-    #LAYER 3 - CLASSIFICATION
+    #LAYER 4 - CLASSIFICATION
     CLASSES = 10
     SVM_C = 3.0
 
@@ -75,6 +75,11 @@ class Config:
 
     @classmethod
     def compute_k_range(cls):
+        """Defining physical limits of layer-2 convolutional neurons' membrane potential,
+        according to kernels' configuration."""
+
+        # Limits defined as (min_charge, max_charge) per kernel
+        # Current limits: (-12, 12)
         cls.K_RANGE = [
             (
                 sum(v == -1 for row in kernel for v in row) * (-cls.Q_RANGE + 1),

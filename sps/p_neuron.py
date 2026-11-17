@@ -5,6 +5,8 @@ class PNeuron:
     """
     each neuron has a unique nid, connects to other neurons (targets),and follows a set of charge transformation rules
     """
+
+    # Managing neurons' id with a class variable and static methods
     nid = 0
 
     @staticmethod
@@ -25,16 +27,23 @@ class PNeuron:
         self.snp_system = snp_system
         self.targets = targets
         self.charge = charge
+        # refractoriness (delay before emitting spikes) initially set to zero
         self.refractory = 0 # can not fire or receive outside spikes between firing at t0 and spiking at t0+delay
         self.transf_rules = transf_rules
         self.neuron_type = neuron_type # can be 0 (input) - 1 (intermediate) - 2 (output)
 
     def receive(self, charge):
+        """Spike reception dynamic: increasing membrane potential of designated neuron 
+        by receiving external spikes from excitatory synapses."""
+
         if self.refractory == 0: # only receive input if outside the refractory period
             self.charge += charge
             #self.snp_system.spike_fired += charge
 
     def inhibit(self, charge):
+        """Spike reception dynamic: decreasing membrane potential of designated neuron 
+        by receiving external spikes from inhibitory synapses."""
+
         if self.refractory == 0: # only receive input if outside the refractory period
             self.charge -= charge
             self.snp_system.inhibition_fired += charge
@@ -55,12 +64,19 @@ class PNeuron:
         for idx in idxs:
             rule = self.transf_rules[idx]
             if rule.check(self.charge):
+                # if rule is a transformation rule
                 if rule.target > 0:
                     return self.fire(rule)
+                # if rule is a forgetting rule
                 else:
                     return self.consume(rule)
 
     def fire(self, rule):
+        """Spike emission dynamic: turning specific amount of internal energy into spikes, 
+        managing white hole configuration and setting proper delay 
+        before firing a positive number of spikes."""
+
+        # Checking to subtract a non-null number (rule.source)
         if rule.source != 0:
             self.charge = self.charge - rule.source
         if Config.WHITE_HOLE: #delete all the internal spike
@@ -71,6 +87,8 @@ class PNeuron:
         return rule
 
     def consume(self, rule):
+        """Consuming neuron's membrane potential by applying a forgetting rule."""
+
         self.charge = 0
         self.snp_system.forgetting_applied += 1
         return rule

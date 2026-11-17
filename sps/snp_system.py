@@ -69,12 +69,16 @@ class SNPSystem:
         while True:
             if self.charge_tracker is not None:
                 self.charge_tracker.record_charges(self.t_step, self.neurons) #takes the index of the current image and reads the charge of each neuron and saves it in self.history.
+            
+            # Executing one tick in the simulation and stop if halting state is reached
             if not self.tick():                
                 if self.charge_tracker is not None:
                     self.charge_tracker.finish()
 
                 if Config.MODE == "generative":
                     print("Spike fired at time step", self.output[0], "and time step", self.output[1], ". The output is", self.output[1] - self.output[0])
+
+                # Saving results (charge_map_prediction) in SO's temporary folder
                 np.save("/tmp/charge_map_snp.npy", self.charge_map_prediction)
                 return
 
@@ -84,6 +88,8 @@ class SNPSystem:
 
         self.history.add_new_tick()
 
+        # (1) Evolving neurons' internal state
+        # [Verifying if any rule is applied to check for halting condition]
         any_rule_applied = False
         # evolve each neuron
         for neuron in self.neurons:
@@ -98,6 +104,8 @@ class SNPSystem:
                     self.output.append(self.t_step)
             self.history.record_rule(neuron, used_rule)
 
+        # (2) Managing current t_step input (dataset's image in CNN mode, 1-d array of 0's and 1's in generative mode)
+        # [Verifying if spike train has ended to check for halting condition]
         input_spike = False # check if there are more input for halting condition
         if Config.MODE == "CNN": # you have an array of images as input
             if self.spike_train.any() and self.t_step < len(self.spike_train):
@@ -106,8 +114,10 @@ class SNPSystem:
                 for i, neuron in enumerate(self.neurons):
                     if neuron.neuron_type == 0:
                         if input_vector[i] > 0:
+                            # Setting layer-1 neurons' charges to original image pixels' value
                             neuron.charge =  int(neuron.charge) + int(input_vector[i]) # add charge to the corresponding neuron
                             self.history.record_incoming(neuron, input_vector[i], "input")
+        # Config.MODE = "generative"
         elif self.spike_train and self.t_step < len(self.spike_train):
             if self.spike_train[self.t_step] == 1: # one boolean spike train for all the input neurons
                 input_spike = True
@@ -117,17 +127,23 @@ class SNPSystem:
                         self.spike_fired += 1
                         self.history.record_incoming(neuron, 1, "input")
 
+        # (3) Managing eventual spike events in current t_step, generated in step(1)
         # consume current spiking events
         for spike_event in self.spike_events[self.t_step % self.max_delay]:
             for idx in spike_event.targets:
+                # Excitatory synapse --> receive()
                 if idx >= 0:
                     self.neurons[idx].receive(spike_event.charge)
                     #self.history.record_incoming(self.neurons[idx], spike_event.charge, spike_event.nid)
+                # Inhibitory synapse --> inhibit()
                 else:
                     self.neurons[-idx].inhibit(spike_event.charge)
                     #self.history.record_incoming(self.neurons[-idx], spike_event.charge, spike_event.nid)
+                
+                # This command is incorrect(?) and upper history commands are correct
                 self.history.record_incoming(self.neurons[idx], spike_event.charge, spike_event.nid)
 
+        # (4) Saving current layer-3 (pooling image) and layer-4 (charge_map_prediction) neurons' charges  
         # fill charge maps
         if Config.MODE == "CNN":
             if Config.NUM_LAYERS - 3 < self.t_step <= len(self.spike_train) + Config.NUM_LAYERS - 3:
@@ -148,12 +164,14 @@ class SNPSystem:
         # clear current spiking events
         self.spike_events[self.t_step % self.max_delay].clear()
 
+        # (5) Checking for halting computation
         # check for halting computation
         any_in_delay = any(n.refractory > 0 for n in self.neurons)
         any_spike_in_transit = any(self.spike_events[i] for i in range(self.max_delay))
         if Config.MODE == "generative" and len(self.output) == 2: # halt computation if output has fired 2 times
             return False
         if not any_rule_applied and not any_in_delay and not any_spike_in_transit and not input_spike and self.t_step > 1:
+            # Accepting mode
             if Config.MODE == "halting":
                 print("The computation halts because no further rules can be applied; the input is accepted")
             return False # end computation
@@ -161,6 +179,7 @@ class SNPSystem:
         self.t_step += 1 # advance time
 
         if self.t_step > self.max_steps:
+            # Accepting mode
             if Config.MODE == "halting":
                 print("The system did not halt naturally within the given step bound; the input is rejected")
             return False # end computation

@@ -250,11 +250,18 @@ def _build_layer1_exact_rules():
     thresholds = []
     for level in range(Config.Q_RANGE - 1, 0, -1):
         lower = (level * 256 + Config.Q_RANGE - 1) // Config.Q_RANGE
+        # treshold values for Q_RANGE = 5:
+        # (205, 4) 
+        # (154, 3) 
+        # (103, 2) 
+        # (52, 1) 
         thresholds.append((lower, level))
 
     for idx, (lower, level) in enumerate(thresholds):
+        # upper values for Q_RANGE = 5: 255, 204, 153, 102, 51
         upper = 255 if idx == 0 else thresholds[idx - 1][0] - 1
         for x in range(upper, lower - 1, -1):
+            # Syntax: numeral_pattern, minimum_charge_value, effective_charge_value, emitted_spikes, delay
             rules.append(f"[0,{x},{x},{level},0]")
 
     # Fill remaining values down to 1 with level 0
@@ -276,11 +283,14 @@ def _build_layer3_exact_rules(k_range_max, multipliers_vec):
         for out_spikes in range(k_range_max, 0, -1):
             k = Config.POOLING_SIZE ** 2 * out_spikes
             multiplied = int(out_spikes * mult_i)
+            # treshold values: (48, 12), (44, 11), (40, 10), etc.
             thresholds.append((k, multiplied))
 
         for idx, (k_lower, multiplied) in enumerate(thresholds):
+            # k_upper values: 48, 47, 43, 39, etc. 
             k_upper = thresholds[idx - 1][0] - 1 if idx > 0 else k_lower
             for x in range(k_upper, k_lower - 1, -1):
+                # Syntax: numeral_pattern, minimum_charge_value, effective_charge_value, emitted_spikes, delay
                 rules.append(f"[0,{x},{x},{multiplied},0]")
 
         # Fill remaining values down to 1 with 0 output
@@ -306,6 +316,7 @@ def _build_layer2_exact_rules(k_index):
     rules = []
 
     for i in range(max_val, 0, -1):
+        # Syntax: numeral_pattern, minimum_charge_value, effective_charge_value, emitted_spikes, delay
         rules.append(f"[0,{i},{i},{i},0]")
 
     # negative exact rules

@@ -40,6 +40,10 @@ def train_SNPS(x_train, y_train):
 
     snps.spike_train = x_train
     snps.start()
+
+    # To train its models, sklearn library needs a 2-D array 
+    # with a shape equal to n_samples x n_features
+    # pooling_image transposition: NEURONS_L3 x TRAIN_SIZE --> TRAIN_SIZE x NEURONS_L3
     pooling = snps.pooling_image.T
 
     np.save("/tmp/pooling_snp.npy", pooling)
@@ -181,12 +185,17 @@ def example_direct(x_train, y_train, x_test, y_test):
     Compare the performance of the baseline models, launched directly on input images, without SNPS feature extraction
     Act as a lower bound, see dotted blue and orange lines in graphs/accuracy_graphs
     '''
+
+    # [num_images x 28 x 28] --> [num_images x 784]
+    # 2-D matrix image [28 x 28] reshaped as 1-D array [784]
     x_train = x_train.reshape(len(x_train), -1)
     x_test = x_test.reshape(len(x_test), -1)
 
+    # Creating and training an SVM (SVM baseline)
     svm = LinearSVC(C=Config.SVM_C, max_iter=100000)
     svm.fit(x_train, y_train)
 
+    # Creating and training a Logistic Regression (LogReg baseline)
     #Logistic Regression
     logreg = LogisticRegression(
         solver="lbfgs",
@@ -194,6 +203,7 @@ def example_direct(x_train, y_train, x_test, y_test):
     )
     logreg.fit(x_train, y_train)
 
+    # Obtaining accuracy from SVM and LogReg
     print("svm direct accuracy", svm.score(x_test, y_test))
     print("logreg direct accuracy", logreg.score(x_test, y_test))
 

@@ -7,12 +7,19 @@ from sps.config import Config
 
 def _build_layer1_qrange_rules():
     """Layer-1 rules equivalent to q = floor(pixel * Q_RANGE / 256)."""
+
     rules = []
 
+    # Defining (Q_RANGE - 1) quantization levels for pixels value [0, 255]
     for level in range(Config.Q_RANGE - 1, 0, -1):
+        #Calculating minimum pixel threshold for the current quantization level
         lower = (level * 256 + Config.Q_RANGE - 1) // Config.Q_RANGE #change 256 into the maximum range of the current image
+
+        # Defining neuron rules for layer-1 according to quantization levels
+        # Syntax: numeral_pattern, minimum_charge_value, effective_charge_value, emitted_spikes, delay
         rules.append(f"[1,{lower},{lower},{level},0]")
 
+    # Defining lowest quantization level (level 0)
     rules.append("[1,1,0,0,0]")
     return rules
 
@@ -30,6 +37,7 @@ def _build_layer2_rules(k_index):
     rules = []
 
     for i in range(Config.K_RANGE[k_index][1], 0, -1):
+        # Syntax: numeral_pattern, minimum_charge_value, effective_charge_value, emitted_spikes, delay
         rules.append(f"[0,{i},{i},{i},0]")
 
     return _with_negative_forgetting(rules)
@@ -45,27 +53,40 @@ def SNPS_csv():
         # Layer 1: Input a 28x28 grayscale image
         l1_firing_rules = _build_layer1_qrange_rules()
         for neuron_id in range(Config.NEURONS_L1):
+            # i_row values: [0, 27]
             i_row = neuron_id // Config.IMG_SHAPE
+            # i_col values: [0, 27]
             i_col = neuron_id % Config.IMG_SHAPE
             output_targets = []
 
             for k_index, kernel in enumerate(Config.KERNELS):
+                # Calculating first neuron index of each (k_index) feature map in layer-2 
                 layer2_offset = Config.NEURONS_L1 + k_index * Config.NEURONS_FEATURE
 
                 for ki in range(Config.KERNEL_SHAPE):
                     for kj in range(Config.KERNEL_SHAPE):
+                        # o_row values: [-2, 25]
                         o_row = i_row - ki
+                        # o_col values: [-2, 25]
                         o_col = i_col - kj
 
+                        # Excluding invalid synapses because of convolutional downsizing
+                        # 28 x 28 --> 26 x 26
                         if 0 <= o_row < Config.SHAPE_FEATURE and 0 <= o_col < Config.SHAPE_FEATURE:
+                            # Calculating relative output neuron index of (k_index) feature map in layer-2
                             output_idx = o_row * Config.SHAPE_FEATURE + o_col
+                            # Calculating absolute output neuron index of (k_index) feature map in layer-2
                             target_id = layer2_offset + output_idx
+
                             weight = kernel[ki][kj]
+                            # In case of excitatory synapse(?)
                             if weight == 1:
                                 output_targets.append(target_id)
+                            # In case of inhibitory synapse(?)
                             elif weight == -1:
                                 output_targets.append(-target_id)
 
+            # Writing neuron definition to .csv
             writer.writerow([
                 neuron_id,                     # id
                 0,                             # initial_charge
@@ -81,9 +102,15 @@ def SNPS_csv():
             layer2_offset = Config.NEURONS_L1 + k_index * Config.NEURONS_FEATURE
 
             for i in range(Config.NEURONS_FEATURE):
+                
+                # Managing downsizing from convolutional to pooling layer
+                # Each feature map is divided in 2 x 2 non-overlapping blocks
+                # Each block of pixels is mapped in one single pixel of the pooling layer
+                # 26 x 26 --> 13 x 13
                 output_targets = [] # Target definition
                 j = ((i // Config.SHAPE_FEATURE) // Config.POOLING_SIZE) * Config.SHAPE_POOL + ((i % Config.SHAPE_FEATURE) // Config.POOLING_SIZE) # position in next pooling layer
                 output_targets.append(Config.NEURONS_L1 + Config.NEURONS_L2 + (k_index * Config.NEURONS_POOL) + j)
+
                 writer.writerow([
                     layer2_offset + i,       # id
                     0,                       # initial_charge
